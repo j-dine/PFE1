@@ -1,0 +1,72 @@
+server:
+  port: 8083
+  error:
+    include-message: always
+    include-binding-errors: always
+
+spring:
+  application:
+    name: workflow-service
+  main:
+    allow-bean-definition-overriding: true
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/workflowdb}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
+
+camunda.bpm:
+  admin-user:
+    id: admin
+    password: admin
+  database:
+    schema-update: true
+    type: postgres
+  job-execution:
+    enabled: true
+  generic-properties:
+    properties:
+      historyCleanupBatchWindowStartTime: "00:01"
+
+eureka:
+  client:
+    enabled: true
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://discovery-service:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${random.value}
+
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 5000
+
+clients:
+  dossier:
+    url: ${DOSSIER_SERVICE_URL:http://dossier-service:8082}
+  paiement:
+    url: ${PAIEMENT_SERVICE_URL:http://paiement-service:8084}
+  notification:
+    url: ${NOTIFICATION_SERVICE_URL:http://notification-service:8085}
+  document:
+    url: ${DOCUMENT_SERVICE_URL:http://document-service:8086}
+
+logging:
+  level:
+    com.example.workflow: DEBUG
+    org.springframework.cloud.openfeign: DEBUG
+    feign: DEBUG
+    org.springframework.cloud.netflix.eureka: INFO
+    org.camunda.bpm.engine.jobexecutor: WARN

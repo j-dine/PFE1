@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dossier-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dossier-service
+  template:
+    metadata:
+      labels:
+        app: dossier-service
+    spec:
+      containers:
+      - name: dossier-service
+        image: dossier-service:latest
+        ports:
+        - containerPort: 8082
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dossier-service
+spec:
+  selector:
+    app: dossier-service
+  ports:
+    - protocol: TCP
+      port: 8082
+      targetPort: 8082

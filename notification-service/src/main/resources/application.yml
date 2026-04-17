@@ -1,0 +1,42 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: notification-service
+
+  # ── Base de données ────────────────────────────────────────────────────────
+  datasource:
+    # On remplace localhost par postgres (le nom du service dans docker-compose)
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/workflowdb}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # ── Kafka (optionnel) ──────────────────────────────────────────────────────
+  kafka:
+    # On remplace localhost par kafka (si tu l'ajoutes plus tard au docker-compose)
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    consumer:
+      group-id: notification-group
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+# ── Eureka ─────────────────────────────────────────────────────────────────
+eureka:
+  client:
+    service-url:
+      # On remplace localhost par discovery-service
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://discovery-service:8761/eureka/}
+  instance:
+    prefer-ip-address: true

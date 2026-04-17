@@ -1,0 +1,279 @@
+services:
+
+  # =============================
+  # PostgreSQL Database
+  # =============================
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_DB: workflowdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d workflowdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: always
+  # =============================
+  # PGADMIN
+  # =============================
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+
+  # =============================
+  # EUREKA DISCOVERY
+  # =============================
+  discovery-service:
+    build: ./discovery-service
+    container_name: discovery-service
+    ports:
+      - "8761:8761"
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8761 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: always
+
+  # =============================
+  # API GATEWAY
+  # =============================
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8080 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: always
+
+  # =============================
+  # USER SERVICE
+  # =============================
+  user-service:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
+    container_name: user-service
+    ports:
+      - "8081:8081"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/workflowdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      # Create a default admin user at startup (dev/local only)
+      APP_BOOTSTRAP_ADMIN_ENABLED: "true"
+      APP_BOOTSTRAP_ADMIN_USERNAME: "admin"
+      APP_BOOTSTRAP_ADMIN_PASSWORD: "Admin@123"
+      APP_BOOTSTRAP_ADMIN_EMAIL: "admin@bo.com"
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8081 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: always
+
+  # =============================
+  # DOSSIER SERVICE
+  # =============================
+  dossier-service:
+    build: ./dossier-service
+    container_name: dossier-service
+    ports:
+      - "8082:8082"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/workflowdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8082 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: always
+
+  # =============================
+  # WORKFLOW SERVICE
+  # =============================
+  workflow-service:
+    build: ./workflow-service
+    container_name: workflow-service
+    ports:
+      - "8083:8083"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/workflowdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      EUREKA_CLIENT_ENABLED: "true"
+      EUREKA_CLIENT_REGISTER_WITH_EUREKA: "true"
+      EUREKA_CLIENT_FETCH_REGISTRY: "true"
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8083 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 50s
+    restart: always
+
+  # =============================
+  # PAIEMENT SERVICE
+  # =============================
+  paiement-service:
+    build: ./paiement-service
+    container_name: paiement-service
+    ports:
+      - "8084:8084"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/workflowdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8084 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: always
+
+  # =============================
+  # NOTIFICATION SERVICE
+  # =============================
+  notification-service:
+    build: ./notification-service
+    container_name: notification-service
+    ports:
+      - "8085:8085"
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8085 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: always
+
+  # =============================
+  # DOCUMENT SERVICE
+  # =============================
+  document-service:
+    build: ./document-service
+    container_name: document-service
+    ports:
+      - "8086:8086"
+    volumes:
+      - document_uploads:/app/uploads
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/workflowdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8086 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    restart: always
+
+# =============================
+# NETWORK
+# =============================
+networks:
+  microservices-network:
+    driver: bridge
+
+# =============================
+# VOLUME
+# =============================
+volumes:
+  postgres_data:
+  pgadmin_data:
+  document_uploads:
+

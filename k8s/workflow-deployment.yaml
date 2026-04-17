@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflow-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: workflow-service
+  template:
+    metadata:
+      labels:
+        app: workflow-service
+    spec:
+      containers:
+      - name: workflow-service
+        image: workflow-service:latest
+        ports:
+        - containerPort: 8083
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workflow-service
+spec:
+  selector:
+    app: workflow-service
+  ports:
+    - protocol: TCP
+      port: 8083
+      targetPort: 8083
