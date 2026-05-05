@@ -1,11 +1,4 @@
 services:
-  - type: postgres
-    name: postgres
-    plan: starter
-    databaseName: workflowdb
-    databaseUser: postgres
-    ipAllowList: []  # only accessible by other services
-
   - type: web
     name: discovery-service
     env: docker
@@ -46,20 +39,11 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromService:
-          type: postgres
-          name: postgres
-          property: connectionString
+        fromSecret: database-url
       - key: SPRING_DATASOURCE_USERNAME
-        fromService:
-          type: postgres
-          name: postgres
-          property: user
+        fromSecret: database-username
       - key: SPRING_DATASOURCE_PASSWORD
-        fromService:
-          type: postgres
-          name: postgres
-          property: password
+        fromSecret: database-password
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
         fromService:
           type: web
@@ -80,10 +64,11 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromService:
-          type: postgres
-          name: postgres
-          property: connectionString
+        fromSecret: database-url
+      - key: SPRING_DATASOURCE_USERNAME
+        fromSecret: database-username
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromSecret: database-password
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
         fromService:
           type: web
@@ -104,10 +89,11 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromService:
-          type: postgres
-          name: postgres
-          property: connectionString
+        fromSecret: database-url
+      - key: SPRING_DATASOURCE_USERNAME
+        fromSecret: database-username
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromSecret: database-password
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
         fromService:
           type: web
@@ -128,10 +114,11 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromService:
-          type: postgres
-          name: postgres
-          property: connectionString
+        fromSecret: database-url
+      - key: SPRING_DATASOURCE_USERNAME
+        fromSecret: database-username
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromSecret: database-password
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
         fromService:
           type: web
@@ -171,10 +158,11 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromService:
-          type: postgres
-          name: postgres
-          property: connectionString
+        fromSecret: database-url
+      - key: SPRING_DATASOURCE_USERNAME
+        fromSecret: database-username
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromSecret: database-password
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
         fromService:
           type: web
@@ -185,6 +173,14 @@ services:
           type: web
           name: api-gateway
           envVarKey: JWT_SECRET
+
+  - type: web
+    name: frontend
+    env: docker
+    plan: starter
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /
 
   - type: web
     name: prometheus
