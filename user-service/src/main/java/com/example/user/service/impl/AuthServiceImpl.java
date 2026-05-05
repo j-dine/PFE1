@@ -10,6 +10,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
+
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
 @Service
@@ -29,7 +31,10 @@ public class AuthServiceImpl implements AuthService {
             throw new ResponseStatusException(UNAUTHORIZED, "Identifiants invalides");
         }
 
-        String token = jwtUtil.generateToken(user.getUsername());
+        List<String> roles = user.getRoles() == null
+                ? List.of()
+                : user.getRoles().stream().map(r -> r.getName()).toList();
+        String token = jwtUtil.generateToken(user.getUsername(), roles);
         return new LoginResponse(token, "Bearer", user.getUsername());
     }
 

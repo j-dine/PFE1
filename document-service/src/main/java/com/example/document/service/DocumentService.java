@@ -57,6 +57,27 @@ public class DocumentService {
         if (document.getNomFichier() == null || document.getNomFichier().isBlank()) {
             throw new IllegalArgumentException("nomFichier obligatoire");
         }
+        if (document.getUrlStorage() == null || document.getUrlStorage().isBlank()) {
+            // Without a storage URL, download will always fail (404).
+            throw new IllegalArgumentException("urlStorage obligatoire (utilisez /api/documents/upload pour stocker un fichier)");
+        }
+
+        // Guardrail: prevent creating "fake" documents that point to nowhere.
+        // We only accept local file storage entries under uploadDir.
+        // If you need external storage (S3/MinIO), implement a dedicated strategy instead of metadata-only rows.
+        String storage = document.getUrlStorage().trim();
+        if (!storage.startsWith("file:")) {
+            throw new IllegalArgumentException("urlStorage invalide: seul 'file:' est supporte (utilisez /api/documents/upload)");
+        }
+        String pathStr = storage.substring("file:".length());
+        Path base = Paths.get(uploadDir).toAbsolutePath().normalize();
+        Path filePath = Paths.get(pathStr).toAbsolutePath().normalize();
+        if (!filePath.startsWith(base)) {
+            throw new IllegalArgumentException("Chemin interdit");
+        }
+        if (!Files.exists(filePath)) {
+            throw new IllegalArgumentException("Fichier introuvable sur le stockage (utilisez /api/documents/upload)");
+        }
         return toDTO(documentRepository.save(document));
     }
 

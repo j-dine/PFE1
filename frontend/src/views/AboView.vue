@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useAppStore } from '../stores/appStore'
+import DocumentsSection from '../components/DocumentsSection.vue'
 
 const store = useAppStore()
 
@@ -76,12 +77,28 @@ const submitDossier = async () => {
         await store.uploadDossierDocuments(newDossier.id, selectedFiles.value, 'original')
       } catch (uploadError) {
         console.error('Erreur upload document:', uploadError)
-        addToast('warn', 'Dossier créé mais certains documents n\'ont pas pu être joints.')
+        // "warn" n'existe pas dans le composant Toasts (success/info/error uniquement)
+        addToast('info', 'Dossier créé mais certains documents n\'ont pas pu être joints.')
       }
     }
 
     addToast('success', 'Dossier créé avec succès !')
-    activeView.value = 'abo-dashboard'
+
+    // Après création: bascule sur consulter + ouverture automatique de la liste des documents uploadés.
+    // Permet de vérifier immédiatement les pièces jointes (ouvrir/supprimer).
+    try {
+      if (newDossier?.id != null) {
+        const found = (store.dossiers || []).find((d: any) => String(d?.id) === String(newDossier.id))
+        if (found) store.selectDossier(found)
+        activeView.value = 'abo-consulter'
+        await store.openArchiveDetails(newDossier.id)
+      } else {
+        activeView.value = 'abo-dashboard'
+      }
+    } catch (e) {
+      console.warn('open docs after create failed:', e)
+      activeView.value = 'abo-consulter'
+    }
     
     // Reset form
     dossierForm.value = {
@@ -112,11 +129,29 @@ const wfSteps = computed(() => store.wfSteps)
 const dossiers = computed(() => store.dossiers)
 const filteredDossiers = computed(() => store.filteredDossiers)
 const selectedDossier = computed(() => store.selectedDossier)
+
+// Charge automatiquement les documents dès qu'un dossier est sélectionné
+watch(selectedDossier, (newDossier) => {
+  if (newDossier?.id) {
+    store.loadSelectedDossierDocuments(newDossier.id)
+  }
+}, { immediate: true })
+
 const activities = computed(() => store.activities)
 const archives = computed(() => store.archives)
 const apiError = computed(() => store.apiError)
 const isLoadingDossiers = computed(() => store.isLoadingDossiers)
 const aboStats = computed(() => store.aboStats)
+const selectedDocsLoading = computed(() => store.selectedDossierDocsLoading)
+const selectedDocs = computed(() => store.selectedDossierDocuments || [])
+const currentRole = computed(() => store.currentRole)
+
+const canDeleteDocs = computed(() => {
+  // Only BO and Admin can delete documents. Also block deletes on archived/locked dossiers.
+  if (currentRole.value !== 'abo' && currentRole.value !== 'admin') return false
+  const locked = !!(selectedDossier.value && (selectedDossier.value.locked || String(selectedDossier.value.statutRaw || '').toUpperCase() === 'ARCHIVE'))
+  return !locked
+})
 
 const dossiersDuJour = computed(() => {
   return store.dossiers.filter((d: any) => d.dateReception === store.todayISO || d.dateReception === new Date().toLocaleDateString('fr-FR'))
@@ -139,6 +174,44 @@ const refreshDossiers = () => store.fetchDossiers()
 const openArchiveDetails = (a: any) => store.openArchiveDetails(a.id)
 const openDocsSelected = () => {
   if (selectedDossier.value?.id) store.openArchiveDetails(selectedDossier.value.id)
+}
+const refreshSelectedDocs = async () => {
+  if (!selectedDossier.value?.id) return
+  try {
+    await store.loadSelectedDossierDocuments(selectedDossier.value.id)
+  } catch (e) {
+    console.warn('refreshSelectedDocs failed:', e)
+  }
+}
+const openDocInline = async (doc: any) => {
+  try {
+    await store.openDocument(doc)
+  } catch (e: any) {
+    addToast('error', e?.message || 'Impossible d\'ouvrir le document')
+  }
+}
+const deleteDocInline = async (doc: any) => {
+  const ok = typeof window === 'undefined' ? true : window.confirm('Supprimer ce document ? Cette action est irreversible.')
+  if (!ok) return
+  try {
+    await store.deleteDocument(doc)
+    addToast('success', 'Document supprimé.')
+  } catch (e: any) {
+    addToast('error', e?.message || 'Suppression impossible côté backend')
+  }
+}
+
+const completeEnregistrement = async () => {
+  if (!selectedDossier.value?.id) {
+    addToast('error', 'Sélectionnez un dossier')
+    return
+  }
+  try {
+    await store.completeEnregistrementWorkflow(selectedDossier.value.id)
+    addToast('success', 'Enregistrement validé (workflow)')
+  } catch (e: any) {
+    addToast('error', e?.message || 'Enregistrement impossible côté workflow')
+  }
 }
 </script>
 
@@ -389,6 +462,15 @@ const openDocsSelected = () => {
               <div class="dp-row"><span class="dp-key">Statut</span><span class="dp-val"><span class="badge" :class="'b-'+selectedDossier.statutKey">{{selectedDossier.statut}}</span></span></div>
             </div>
             <div class="dp-actions">
+              <button
+                class="btn btn-success"
+                style="width:100%;justify-content:center"
+                v-if="String(selectedDossier.statutRaw||'').toUpperCase()==='RECU' || String(selectedDossier.statutRaw||'').toUpperCase()==='OUVERT'"
+                @click="completeEnregistrement"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                Valider enregistrement
+              </button>
               <button class="btn btn-outline" style="width:100%;justify-content:center" @click="openModal('uploadDoc')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 Uploader document
@@ -406,6 +488,27 @@ const openDocsSelected = () => {
                 Archiver le dossier
               </button>
             </div>
+
+            <DocumentsSection
+              title="Documents"
+              :documents="selectedDocs"
+              :loading="selectedDocsLoading"
+              :can-delete="canDeleteDocs"
+              @open="openDocInline"
+              @delete="deleteDocInline"
+            >
+              <template #actions>
+                <button class="btn btn-outline btn-sm" type="button" @click="refreshSelectedDocs">Actualiser</button>
+              </template>
+              <template #empty>
+                Aucun document associé à ce dossier.
+                <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+                  <button class="btn btn-outline btn-sm" type="button" @click="openModal('uploadDoc')">Uploader</button>
+                  <button class="btn btn-outline btn-sm" type="button" @click="openDocsSelected">Voir (modal)</button>
+                </div>
+              </template>
+            </DocumentsSection>
+
             <div style="border-top:1px solid var(--border);padding:14px 18px 4px">
               <div style="font-size:11px;font-weight:700;margin-bottom:10px">Historique des actions</div>
               <div class="tl-item" v-for="h in selectedDossier.historique" :key="h.id">

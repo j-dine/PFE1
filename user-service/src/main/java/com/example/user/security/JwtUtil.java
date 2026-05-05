@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
+import java.util.List;
 import java.util.function.Function;
 
 @Component
@@ -44,9 +45,14 @@ public class JwtUtil {
     }
 
     public String generateToken(String username) {
+        return generateToken(username, List.of());
+    }
+
+    public String generateToken(String username, List<String> roles) {
         long now = System.currentTimeMillis();
         return Jwts.builder()
                 .setSubject(username)
+                .claim("roles", roles != null ? roles : List.of())
                 .setIssuedAt(new Date(now))
                 .setExpiration(new Date(now + expirationMs))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)

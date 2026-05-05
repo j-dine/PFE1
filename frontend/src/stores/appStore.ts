@@ -1,10 +1,12 @@
-import { defineStore } from 'pinia'
+﻿import { defineStore } from 'pinia'
 import { authService } from '../services/authService'
 import { dossierService } from '../services/dossierService'
 import { userService } from '../services/userService'
 import { paiementService } from '../services/paiementService'
 import { documentService } from '../services/documentService'
+import { workflowService } from '../services/workflowService'
 import { setAuthToken } from '../services/api'
+import axios from 'axios'
 
 export const useAppStore = defineStore('app', {
   state: () => {
@@ -44,16 +46,19 @@ export const useAppStore = defineStore('app', {
       dossiers: [] as any[],
       archives: [] as any[],
       paiements: [] as any[],
+      workflowTasks: [] as any[],
       docsCountByDossierId: {} as Record<string, number>,
       archiveDetailsLoading: false,
       archiveDetailsDossier: null as any,
       archiveDetailsDocuments: [] as any[],
+      selectedDossierDocuments: [] as any[],
+      selectedDossierDocsLoading: false,
       auditLogs: [] as any[],
       adminUsers: [] as any[],
       decisionsResp: [] as any[],
       statsDistrib: [
         { label: 'Archivés', count: 0, pct: 0, color: '#64748b' },
-        { label: 'Payéé', count: 0, pct: 0, color: '#15803d' },
+        { label: 'Payés', count: 0, pct: 0, color: '#15803d' },
         { label: 'En validation', count: 0, pct: 0, color: '#be185d' },
         { label: 'En traitement', count: 0, pct: 0, color: '#b45309' },
         { label: 'Rejetés', count: 0, pct: 0, color: '#dc2626' },
@@ -63,7 +68,7 @@ export const useAppStore = defineStore('app', {
         { key: '2fa', label: 'Double authentification', sub: 'Obligatoire pour admins', on: true },
         { key: 'audit', label: 'Journal d\'audit', sub: 'Traçabilité complète', on: true },
         { key: 'maint', label: 'Mode maintenance', sub: 'Access restreint utilisateurs', on: false },
-        { key: 'archivage', label: 'Archivage automatique', sub: 'Dossiers payé ’ archivé', on: true },
+        { key: 'archivage', label: 'Archivage automatique', sub: 'Dossiers payés archivés', on: true },
       ],
       services: [
         { name: 'api-gateway', port: ':8080', ok: true }, { name: 'auth-service', port: ':8081', ok: true },
@@ -160,12 +165,12 @@ export const useAppStore = defineStore('app', {
       const q = state.userSearch.toLowerCase();
       return state.adminUsers.filter((u: any) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
     },
-    // Statistiques calculées dynamiquement
+    // Statistiques calculÃ©es dynamiquement
     statsCounters: (state) => {
       const totalDossiers = state.dossiers.length
       const actifsUsers = state.adminUsers.filter((u: any) => u.active).length
       
-      // Dossiers ce mois (calculé sur dateReception)
+      // Dossiers ce mois (calculÃ© sur dateReception)
       const now = new Date()
       const currentMonth = now.getMonth()
       const currentYear = now.getFullYear()
@@ -226,7 +231,15 @@ export const useAppStore = defineStore('app', {
         payesMois: state.paiements.filter((p: any) => p.paid).length,
         dossiersPayes: state.dossiers.filter((d: any) => d.statutKey === 'paiement').length
       }
-    }
+    },
+    candidateGroupForRole: (state) => {
+      const r = String(state.currentRole || '')
+      if (r === 'abo') return 'BO'
+      if (r === 'as') return 'SERVICE'
+      if (r === 'resp') return 'RESPONSABLE'
+      if (r === 'af') return 'FINANCIER'
+      return ''
+    },
   },
   actions: {
     resolveRoleFromRoles(rawRoles: any) {
@@ -273,20 +286,109 @@ export const useAppStore = defineStore('app', {
         this.isAuthenticated = true
       }
       if (this.isAuthenticated) {
-        // Charge l'utilisateur connecté pour déterminer son rôle et verrouiller l'UI sur ce rôle.
+        // Charge l'utilisateur connectÃ© pour dÃ©terminer son rÃ´le et verrouiller l'UI sur ce rÃ´le.
         try {
           const me = await userService.me()
           this.applySessionUser(me)
         } catch {
-          // Token invalide ou backend down => l'interceptor gère le logout.
+          // Token invalide ou backend down => l'interceptor gÃ¨re le logout.
         }
         await Promise.all([
           this.fetchDossiers(),
           this.fetchArchives(),
-          this.fetchPaiements()
+          this.fetchPaiements(),
+          this.fetchMyWorkflowTasks()
         ])
         if (this.currentRole === 'admin') {
           await this.fetchUsers()
+        }
+      }
+    },
+    async fetchMyWorkflowTasks() {
+      try {
+        const group = (this as any).candidateGroupForRole || ''
+        if (!group) {
+          this.workflowTasks = []
+          return
+        }
+        this.workflowTasks = await workflowService.listTasks({ candidateGroup: group })
+      } catch (e) {
+        console.warn('fetchMyWorkflowTasks failed:', e)
+        this.workflowTasks = []
+      }
+    },
+    async fetchWorkflowTasksByDossier(dossierId: number | string) {
+      const group = (this as any).candidateGroupForRole || ''
+      const list = await workflowService.listTasks({
+        dossierId: Number(dossierId),
+        candidateGroup: group || undefined,
+      })
+      return Array.isArray(list) ? list : []
+    },
+    async startWorkflowForDossier(dossierId: number | string) {
+      await workflowService.start(dossierId)
+      await Promise.all([this.fetchDossiers(), this.fetchMyWorkflowTasks()])
+    },
+    async completeWorkflowTaskForDossier(dossierId: number | string, taskDefinitionKey: string, variables?: Record<string, any>) {
+      const tasks = await this.fetchWorkflowTasksByDossier(dossierId)
+      const task = tasks.find((t: any) => String(t?.taskDefinitionKey || '') === String(taskDefinitionKey || ''))
+      if (!task?.id) {
+        throw new Error(`Aucune tÃ¢che workflow '${taskDefinitionKey}' trouvÃ©e pour ce dossier.`)
+      }
+      await workflowService.completeTask(String(task.id), variables || {})
+      await Promise.all([this.fetchDossiers(), this.fetchArchives(), this.fetchPaiements(), this.fetchMyWorkflowTasks()])
+    },
+    async completeEnregistrementWorkflow(dossierId: number | string) {
+      await this.completeWorkflowTaskForDossier(dossierId, 'UserTask_Enregistrement')
+    },
+    async completeTraitementWorkflow(dossierId: number | string, commentaire?: string) {
+      const vars: any = {}
+      if (commentaire) vars.commentaire = commentaire
+      await this.completeWorkflowTaskForDossier(dossierId, 'UserTask_Traitement', vars)
+      if (commentaire) {
+        try {
+          await dossierService.comment(dossierId, { commentaire, visibilite: 'interne' })
+        } catch (e) {
+          console.warn('comment trace failed:', e)
+        }
+      }
+    },
+    async completeValidationWorkflow(dossierId: number | string, isValidated: boolean, commentaire?: string) {
+      const vars: any = { isValidated: !!isValidated }
+      if (commentaire) vars.commentaire = commentaire
+      await this.completeWorkflowTaskForDossier(dossierId, 'UserTask_Validation', vars)
+      if (commentaire) {
+        try {
+          await dossierService.comment(dossierId, { commentaire, visibilite: 'interne' })
+        } catch (e) {
+          console.warn('comment trace failed:', e)
+        }
+      }
+    },
+    async completePaiementWorkflow(dossierId: number | string, montant: number, commentaire?: string) {
+      const vars: any = { montant: Number(montant) }
+      if (!isFinite(vars.montant) || vars.montant <= 0) {
+        throw new Error('Montant invalide (doit Ãªtre > 0).')
+      }
+      if (commentaire) vars.commentaire = commentaire
+      await this.completeWorkflowTaskForDossier(dossierId, 'UserTask_Paiement', vars)
+      if (commentaire) {
+        try {
+          await dossierService.comment(dossierId, { commentaire, visibilite: 'interne' })
+        } catch (e) {
+          console.warn('comment trace failed:', e)
+        }
+      }
+    },
+    async completeArchivageWorkflow(dossierId: number | string, commentaire?: string) {
+      const vars: any = {}
+      if (commentaire) vars.commentaire = commentaire
+      await this.completeWorkflowTaskForDossier(dossierId, 'UserTask_Archivage', vars)
+      if (commentaire) {
+        try {
+          await dossierService.comment(dossierId, { commentaire, visibilite: 'interne' })
+        } catch (e) {
+          console.warn('comment trace failed:', e)
         }
       }
     },
@@ -321,6 +423,14 @@ export const useAppStore = defineStore('app', {
         console.error('Erreur fetchUsers:', error)
       }
     },
+    formatDateDisplay(v: any) {
+      if (!v) return '-'
+      if (typeof v === 'string' && v.includes('-')) {
+        const dt = new Date(v)
+        return Number.isNaN(dt.getTime()) ? v : dt.toLocaleDateString('fr-FR')
+      }
+      return String(v)
+    },
     async fetchArchives() {
       try {
         const apiArchives = await dossierService.listByStatut('ARCHIVE')
@@ -330,11 +440,11 @@ export const useAppStore = defineStore('app', {
             ref: d.numero,
             objet: d.titre || d.sujet || d.description || 'Sans objet',
             from: d.destinataireExterne || d.expediteur || '-',
-            date: d.archivedAt ? String(d.archivedAt).slice(0, 10).split('-').reverse().join('/') : (d.dateReception ? String(d.dateReception) : '-'),
+            date: d.archivedAt ? this.formatDateDisplay(d.archivedAt) : this.formatDateDisplay(d.dateReception),
             operateur: 'Système',
             docs: this.docsCountByDossierId[String(d.id)] ?? 0
           }))
-          // Remplit les compteurs de documents en arrière-plan (N appels, limité).
+          // Remplit les compteurs de documents en arriÃ¨re-plan (N appels, limitÃ©).
           void this.prefetchArchiveDocCounts(30)
         }
       } catch (error) {
@@ -366,6 +476,15 @@ export const useAppStore = defineStore('app', {
         this.archives[idx].docs = count
       }
       return docs
+    },
+    async loadSelectedDossierDocuments(dossierId: number | string) {
+      this.selectedDossierDocsLoading = true
+      try {
+        const docs = await this.fetchDocumentsByDossier(dossierId)
+        this.selectedDossierDocuments = Array.isArray(docs) ? docs : []
+      } finally {
+        this.selectedDossierDocsLoading = false
+      }
     },
     async loadArchiveDetails(dossierId: number | string) {
       this.archiveDetailsLoading = true
@@ -451,6 +570,9 @@ export const useAppStore = defineStore('app', {
           if (this.archiveDetailsDossier && String(this.archiveDetailsDossier.id) === String(dossierId)) {
             this.archiveDetailsDocuments = Array.isArray(docs) ? docs : []
           }
+          if (this.selectedDossier && String(this.selectedDossier.id) === String(dossierId)) {
+            this.selectedDossierDocuments = Array.isArray(docs) ? docs : []
+          }
         } catch {
           // ignore
         }
@@ -489,7 +611,7 @@ export const useAppStore = defineStore('app', {
       } catch (error) {
         console.error('Erreur fetchPaiements:', error)
         // Fallback UI: si le microservice paiement n'est pas accessible,
-        // on affiche au moins les dossiers "VALIDE" (à payer) côté agent financier.
+        // on affiche au moins les dossiers "VALIDE" (Ã  payer) cÃ´tÃ© agent financier.
         const dossiers = Array.isArray(this.dossiers) ? this.dossiers : []
         this.paiements = dossiers
           .filter((d: any) => ['VALIDE', 'PAYE'].includes(String(d.statutRaw || '').toUpperCase()))
@@ -512,18 +634,6 @@ export const useAppStore = defineStore('app', {
       try {
         const apiDossiers = await dossierService.list()
         if (Array.isArray(apiDossiers)) {
-          const formatDate = (v: any) => {
-            if (!v) return this.todayISO
-            // Java LocalDate => "YYYY-MM-DD"
-            if (typeof v === 'string' && v.includes('-')) {
-              const dt = new Date(v)
-              if (!Number.isNaN(dt.getTime())) {
-                return dt.toLocaleDateString('fr-FR')
-              }
-            }
-            return String(v)
-          }
-
           const mapPriorite = (raw: any) => {
             const p = String(raw || '').toUpperCase()
             if (p.includes('TRES_URGENT')) return { label: 'Très urgent', level: 3, urgent: true }
@@ -540,14 +650,14 @@ export const useAppStore = defineStore('app', {
               numero: d.numero ?? `CO-API-${index + 1}`,
               objet: d.titre || d.sujet || d.description || 'Sans objet',
               expediteur: d.destinataireExterne || (d.userId ? `User ${d.userId}` : 'Non renseigné'),
-              dateReception: formatDate(d.dateReception) || this.todayISO,
+              dateReception: this.formatDateDisplay(d.dateReception),
               service: d.serviceCible || 'Non affecté',
               statutRaw: String(statutRaw).toUpperCase(),
               statut: this.getStatutLabel(String(statutRaw)),
               statutKey: this.mapStatutKey(String(statutRaw)),
               priorite: prioriteMapped.label,
               prioriteLevel: prioriteMapped.level,
-              deadline: d.deadlineAt ? String(d.deadlineAt).slice(0, 10).split('-').reverse().join('/') : '-',
+              deadline: this.formatDateDisplay(d.deadlineAt),
               urgent: prioriteMapped.urgent,
               agent: 'Agent',
               agentInit: 'AG',
@@ -556,7 +666,7 @@ export const useAppStore = defineStore('app', {
             }
           })
 
-          // Mise Ã  jour des stats de distribution en fonction des données réelles
+          // Mise à jour des stats de distribution en fonction des données réelles
           const countStatut = (key: string) => this.dossiers.filter((d: any) => d.statutKey === key).length
           const total = this.dossiers.length || 1
           this.statsDistrib = [
@@ -594,7 +704,7 @@ export const useAppStore = defineStore('app', {
       const data = await authService.login({ username, password }, remember)
       this.authToken = data.token
       this.isAuthenticated = true
-      // Récupère le rôle réel depuis le backend (pas de sélection manuelle côté UI).
+      // RÃ©cupÃ¨re le rÃ´le rÃ©el depuis le backend (pas de sÃ©lection manuelle cÃ´tÃ© UI).
       try {
         const me = await userService.me()
         this.applySessionUser(me)
@@ -607,7 +717,8 @@ export const useAppStore = defineStore('app', {
       await Promise.all([
         this.fetchDossiers(),
         this.fetchArchives(),
-        this.fetchPaiements()
+        this.fetchPaiements(),
+        this.fetchMyWorkflowTasks()
       ])
       if (this.currentRole === 'admin') {
         await this.fetchUsers()
@@ -662,72 +773,33 @@ export const useAppStore = defineStore('app', {
       }
     },
     async transitionDossier(dossierId: number | string, statut: string, commentaire?: string) {
-      await dossierService.transition(dossierId, { statut, commentaire })
-      // Pour les transitions de statut simples, le controller dossier-service ne stocke pas directement le commentaire.
-      // On le trace via un endpoint "comments" (si backend supporte ce route).
-      if (commentaire && statut !== 'ARCHIVE') {
-        await dossierService.comment(dossierId, { commentaire, visibilite: 'interne' })
-      }
-      this.applyLocalTransition(dossierId, statut, commentaire)
-
-      // Historique UI: "Décisions récentes" (Chef de service).
-      // Le backend ne fournit pas encore un audit des décisions, donc on maintient une liste côté front.
-      // Affiché uniquement pour le rôle responsable.
+      // Mode Camunda: on complète les user tasks au lieu de changer directement le statut.
       const upper = String(statut || '').toUpperCase()
-      if (this.currentRole === 'resp' && (upper === 'VALIDE' || upper === 'REJETE')) {
-        const d = this.dossiers.find((x: any) => String(x?.id) === String(dossierId))
-        const decision = upper === 'VALIDE' ? 'Validé' : 'Rejeté'
-        const ref = d?.numero || `Dossier ${dossierId}`
-        const entry = {
-          id: Date.now(),
-          ref,
-          decision,
-          comment: (commentaire || '').trim() || '-',
-          date: new Date().toLocaleString('fr-FR'),
-        }
-        this.decisionsResp = [entry, ...(Array.isArray(this.decisionsResp) ? this.decisionsResp : [])].slice(0, 20)
+      if (upper === 'VALIDE') {
+        await this.completeValidationWorkflow(dossierId, true, commentaire)
+        return
       }
-
-      // Rafraîchit l'écran Archives immédiatement après archivage.
-      if (String(statut || '').toUpperCase() === 'ARCHIVE') {
-        await Promise.all([this.fetchArchives(), this.fetchDossiers()])
-        try {
-          await this.fetchDocumentsByDossier(dossierId)
-        } catch (e) {
-          console.warn('Docs count failed:', e)
-        }
+      if (upper === 'REJETE') {
+        await this.completeValidationWorkflow(dossierId, false, commentaire)
+        return
       }
-
-      // Intégration UI -> paiement-service:
-      // Le front passe directement par dossier-service (bypass Camunda),
-      // donc on crée/maj un paiement ici pour que l'agent financier voie le dossier.
-      try {
-        if (upper === 'VALIDE') {
-          const existing = (Array.isArray(this.paiements) ? this.paiements : [])
-            .find((p: any) => String(p.dossierId) === String(dossierId))
-          if (!existing) {
-            await paiementService.create({
-              dossierId: Number(dossierId),
-              montant: 0,
-              modePaiement: 'VIREMENT',
-              statut: 'EN_ATTENTE',
-              reference: `UI-${dossierId}-${Date.now()}`,
-            })
-          }
-          await this.fetchPaiements()
-        }
-        if (upper === 'PAYE') {
-          const existing = (Array.isArray(this.paiements) ? this.paiements : [])
-            .find((p: any) => String(p.dossierId) === String(dossierId))
-          if (existing?.id) {
-            await paiementService.updateStatut(existing.id, 'VALIDE')
-          }
-          await this.fetchPaiements()
-        }
-      } catch (e) {
-        // Ne bloque pas la transition dossier si le microservice paiement est indisponible.
-        console.warn('Paiement sync failed:', e)
+      if (upper === 'PAYE') {
+        throw new Error('En mode Camunda, utilisez completePaiementWorkflow(dossierId, montant, commentaire).')
       }
+      if (upper === 'ARCHIVE') {
+        await this.completeArchivageWorkflow(dossierId, commentaire)
+        return
+      }
+      if (upper === 'EN_COURS') {
+        // Ancien libellé UI utilisé par l'agent service: correspond à la complétion de la tâche "Traitement".
+        await this.completeTraitementWorkflow(dossierId, commentaire)
+        return
+      }
+      if (upper === 'ENREGISTRE') {
+        await this.completeEnregistrementWorkflow(dossierId)
+        return
+      }
+      throw new Error(`Transition '${upper}' non supportée via Camunda.`)
     },
     async transitionSelectedDossier(statut: string, commentaire?: string) {
       if (!this.selectedDossier?.id) throw new Error('Aucun dossier selectionné')
@@ -756,19 +828,27 @@ export const useAppStore = defineStore('app', {
     },
     async createDossier(payload: any) {
       const data = await dossierService.create(payload)
-      await this.fetchDossiers()
+      // Démarre le workflow Camunda: Réception(auto) -> tâche BO "Enregistrement"
+      if (data?.id != null) {
+        try {
+          await workflowService.start(data.id)
+        } catch (e) {
+          console.warn('workflow start failed:', e)
+        }
+      }
+      await Promise.all([this.fetchDossiers(), this.fetchMyWorkflowTasks()])
       return data
     },
     async uploadDossierDocument(dossierId: number | string, file: File, type: string = 'original', commentaire?: string) {
       const data = await dossierService.uploadDocument(dossierId, file, { type, commentaire })
 
-      // Trace locale (historique) pour l'UI, même si le backend ne stocke pas le commentaire upload.
+      // Trace locale (historique) pour l'UI, mÃªme si le backend ne stocke pas le commentaire upload.
       const idx = this.dossiers.findIndex((d: any) => String(d.id) === String(dossierId))
       if (idx !== -1) {
         const d = this.dossiers[idx]
         const historyItem = {
           id: Date.now(),
-          action: 'Document uploadé',
+          action: 'Document uploadÃ©',
           user: this.currentUser?.name || 'Utilisateur',
           date: new Date().toLocaleString('fr-FR'),
           bg: '#dbeafe',
@@ -847,7 +927,7 @@ export const useAppStore = defineStore('app', {
       await this.fetchUsers()
     },
     switchRole(role: string) {
-      // Désactivé: le rôle vient du backend et n'est pas sélectionnable côté UI.
+      // DÃ©sactivÃ©: le rÃ´le vient du backend et n'est pas sÃ©lectionnable cÃ´tÃ© UI.
       this.addToast('error', 'Changement de rôle interdit. Déconnectez-vous pour changer de compte.')
     },
     selectDossier(d: any) { this.selectedDossier = d },
@@ -856,6 +936,35 @@ export const useAppStore = defineStore('app', {
       this.modalOpen = true;
       if (data && (data.numero || data.id)) this.modalDossier = data;
       if (data && data.email) this.modalUser = data;
+    },
+    async updateDossier(dossierId: number | string, payload: any) {
+      try {
+        await dossierService.update(dossierId, payload)
+        await this.fetchDossiers()
+        // Après avoir rafraîchi la liste, assurez-vous que selectedDossier pointe vers la version à jour
+        const foundUpdatedDossier = this.dossiers.find((d: any) => String(d.id) === String(dossierId))
+        if (foundUpdatedDossier) {
+          this.selectedDossier = foundUpdatedDossier
+        } else {
+          // Si le dossier mis à jour n'est plus trouvé (ex: filtré, supprimé), désélectionnez-le
+          this.selectedDossier = null
+        }
+
+        this.addToast('success', 'Dossier mis à jour avec succès !')
+      } catch (error) {
+        this.addToast('error', 'Erreur lors de la mise à jour du dossier.')
+        throw error
+      }
+    },
+    async sendEmailResponse(payload: { to: string, subject: string, body: string }) {
+      try {
+        await axios.post('/api/notifications/email', payload)
+        console.log('Envoi de l\'e-mail via notification-service:', payload)
+        this.addToast('success', 'E-mail envoyé avec succès !')
+      } catch (error) {
+        this.addToast('error', 'Échec de l\'envoi de l\'e-mail.')
+        throw error
+      }
     },
     addToast(type: string, msg: string) {
       const id = ++this.toastCounter;

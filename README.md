@@ -1,52 +1,77 @@
-# PFE1
+# PFE1 - Microservices Project
 
+A Spring Boot microservices architecture with Eureka discovery, API Gateway, and various business services.
 
+## Architecture
 
-## Getting started
+- **Discovery Service**: Eureka server for service registration and discovery
+- **API Gateway**: Spring Cloud Gateway for routing and load balancing
+- **User Service**: User management and authentication
+- **Dossier Service**: Dossier management
+- **Workflow Service**: BPM orchestration with Camunda
+- **Paiement Service**: Payment processing
+- **Notification Service**: Notification handling
+- **Document Service**: File management
+- **Frontend**: Vue.js application
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Prerequisites
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+- Docker and Docker Compose
+- Java 17
+- Maven
 
-## Add your files
+## Local Development
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+1. Clone the repository
+2. Run `docker-compose up` to start all services including monitoring
+3. Access:
+   - API Gateway: http://localhost:8080
+   - Eureka Dashboard: http://localhost:8761
+   - Prometheus: http://localhost:9090
+   - Grafana: http://localhost:3000 (admin/admin)
+   - PGAdmin: http://localhost:5050
 
+## Monitoring
+
+The project includes Prometheus and Grafana for monitoring:
+
+- **Prometheus**: Scrapes metrics from all services at `/actuator/prometheus`
+- **Grafana**: Visualizes metrics with pre-configured dashboards
+
+## Deployment
+
+### Docker Compose
+
+```bash
+docker-compose up -d
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/j-dine/pfe1.git
-git branch -M main
-git push -uf origin main
+
+### Kubernetes
+
+```bash
+kubectl apply -f k8s/
 ```
 
-## Integrate with your tools
+### Render.com
 
-* [Set up project integrations](https://gitlab.com/j-dine/pfe1/-/settings/integrations)
+1. Connect your repository to Render
+2. Use the `render.yaml` configuration for multi-service deployment
+3. Services will be deployed with monitoring included
 
-## Collaborate with your team
+## Configuration
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+- Database: PostgreSQL
+- JWT for authentication
+- Eureka for service discovery
 
-## Test and Deploy
+## Building
 
-Use the built-in continuous integration in GitLab.
+Each service can be built individually:
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+```bash
+cd <service-name>
+mvn clean package
+```
 
 ## Suggestions for a good README
 

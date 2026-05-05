@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+﻿﻿﻿﻿﻿﻿<script setup lang="ts">
 import { computed } from 'vue'
 import { useAppStore } from '../stores/appStore'
 
@@ -10,6 +10,14 @@ const activeView = computed({
 })
 const wfSteps = computed(() => store.wfSteps)
 const dossiers = computed(() => store.dossiers)
+const tasks = computed(() => store.workflowTasks || [])
+const validationDossiers = computed(() => {
+  const map = new Map((dossiers.value || []).map((d: any) => [String(d.id), d]))
+  return (tasks.value || [])
+    .filter((t: any) => String(t?.taskDefinitionKey || '') === 'UserTask_Validation')
+    .map((t: any) => map.get(String(t.dossierId)))
+    .filter(Boolean)
+})
 const decisionsResp = computed(() => store.decisionsResp)
 const respStats = computed(() => store.respStats)
 const todayISO = computed(() => store.todayISO)
@@ -59,7 +67,7 @@ const openDocs = (d: any) => {
         <table class="tbl">
           <thead><tr><th>Référence</th><th>Objet</th><th>Agent traitant</th><th>Priorité</th><th>Délai</th><th>Décision</th></tr></thead>
           <tbody>
-            <tr v-for="d in dossiers.filter((x:any)=>x.statutKey==='validation'||x.statutKey==='traitement')" :key="d.id">
+            <tr v-for="d in validationDossiers" :key="d.id">
               <td style="font-size:11px;font-weight:800;color:var(--blue)">{{d.numero}}</td>
               <td>
                 <div style="font-weight:600;font-size:12px">{{d.objet}}</div>

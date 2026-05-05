@@ -70,3 +70,12 @@ logging:
     feign: DEBUG
     org.springframework.cloud.netflix.eureka: INFO
     org.camunda.bpm.engine.jobexecutor: WARN
+
+jwt:
+  secret: ${JWT_SECRET:my-super-secret-key-for-jwt-signing-32chars-min}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

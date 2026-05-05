@@ -7,13 +7,23 @@ import com.example.workflow.service.WorkflowService;
 import lombok.RequiredArgsConstructor;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.TaskService;
+import org.camunda.bpm.engine.task.IdentityLink;
+import org.camunda.bpm.engine.task.Task;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/workflow")
@@ -52,6 +62,7 @@ public class WorkflowController {
             @RequestParam(required = false) String candidateGroup,
             @RequestParam(required = false) Long dossierId
     ) {
+        enforceCandidateGroup(candidateGroup);
         var q = taskService.createTaskQuery().active();
         if (assignee != null && !assignee.isBlank()) q = q.taskAssignee(assignee);
         if (candidateGroup != null && !candidateGroup.isBlank()) q = q.taskCandidateGroup(candidateGroup);
@@ -76,17 +87,82 @@ public class WorkflowController {
         return ResponseEntity.ok(tasks);
     }
 
+    private void enforceCandidateGroup(String candidateGroup) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getAuthorities() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+        Set<String> roles = auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toSet());
+        if (roles.contains("ROLE_ADMIN")) return;
+        if (candidateGroup == null || candidateGroup.isBlank()) {
+            // Prevent listing tasks for other groups.
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "candidateGroup is required");
+        }
+        String expected = expectedCandidateGroupForRoles(roles);
+        if (expected == null || !expected.equalsIgnoreCase(candidateGroup)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden for this candidateGroup");
+        }
+    }
+
     @PostMapping("/tasks/{taskId}/complete")
     public ResponseEntity<Map<String, Object>> completeTask(
             @PathVariable String taskId,
             @RequestBody(required = false) CompleteTaskRequest body
     ) {
+        enforceTaskRole(taskId);
         Map<String, Object> vars = new HashMap<>();
         if (body != null && body.getVariables() != null) {
             vars.putAll(body.getVariables());
         }
         taskService.complete(taskId, vars);
         return ResponseEntity.ok(Map.of("taskId", taskId, "completed", true));
+    }
+
+    private void enforceTaskRole(String taskId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getAuthorities() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+
+        Set<String> roles = auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toSet());
+        if (roles.contains("ROLE_ADMIN")) return;
+
+        Task task = taskService.createTaskQuery().taskId(taskId).singleResult();
+        if (task == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found");
+        }
+
+        List<IdentityLink> links = taskService.getIdentityLinksForTask(taskId);
+        Set<String> candidateGroups = new HashSet<>();
+        for (IdentityLink l : links) {
+            if ("candidate".equalsIgnoreCase(l.getType()) && l.getGroupId() != null && !l.getGroupId().isBlank()) {
+                candidateGroups.add(l.getGroupId());
+            }
+        }
+
+        // If no candidate group is set, allow (fallback for custom tasks).
+        if (candidateGroups.isEmpty()) return;
+
+        String expectedGroup = expectedCandidateGroupForRoles(roles);
+        if (expectedGroup == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Role not allowed");
+        }
+        boolean ok = candidateGroups.stream().anyMatch(g -> g.equalsIgnoreCase(expectedGroup));
+        if (!ok) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden for this task group");
+        }
+    }
+
+    private String expectedCandidateGroupForRoles(Set<String> roles) {
+        if (roles.contains("ROLE_AGENT_BUREAU_ORDRE")) return "BO";
+        if (roles.contains("ROLE_AGENT_SERVICE")) return "SERVICE";
+        if (roles.contains("ROLE_RESPONSABLE")) return "RESPONSABLE";
+        if (roles.contains("ROLE_AGENT_FINANCIER")) return "FINANCIER";
+        return null;
     }
 }
 

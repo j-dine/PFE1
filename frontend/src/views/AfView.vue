@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+﻿﻿<script setup lang="ts">
 import { computed } from 'vue'
 import { ref } from 'vue'
 import { useAppStore } from '../stores/appStore'
@@ -11,7 +11,9 @@ const activeView = computed({
   set: (val) => { store.activeView = val }
 })
 const wfSteps = computed(() => store.wfSteps)
-const paiements = computed(() => store.paiements)
+// En mode Camunda, l'agent financier travaille sur les dossiers "VALIDE" (tâche Paiement).
+const dossiers = computed(() => store.dossiers)
+const dossiersARegler = computed(() => dossiers.value.filter((d: any) => String(d?.statutRaw || '').toUpperCase() === 'VALIDE'))
 const afStats = computed(() => store.afStats)
 const todayISO = computed(() => store.todayISO)
 const paymentRef = ref('')
@@ -22,7 +24,7 @@ const openModal = (name: string, data?: any) => store.openModal(name, data)
 const addToast = (type: string, msg: string) => store.addToast(type, msg)
 
 const openDocs = (p: any) => {
-  const id = p?.dossierId || store.dossiers.find((d: any) => d.numero === p?.ref)?.id
+  const id = p?.id || p?.dossierId || store.dossiers.find((d: any) => d.numero === p?.ref)?.id
   if (!id) {
     addToast('error', 'Dossier introuvable pour consulter les documents')
     return
@@ -30,36 +32,23 @@ const openDocs = (p: any) => {
   store.openArchiveDetails(id)
 }
 const registerPayment = async () => {
-  const target = store.dossiers.find((d: any) => d.numero === paymentRef.value || d.id === paymentRef.value) || store.selectedDossier
+  const target = store.dossiers.find((d: any) => d.numero === paymentRef.value || String(d.id) === String(paymentRef.value)) || store.selectedDossier
   if (!target?.id) {
     addToast('error', 'Reference dossier introuvable')
     return
   }
   try {
-    await store.transitionDossier(
+    const amount = Number(String(paymentAmount.value || '').replace(',', '.'))
+    await store.completePaiementWorkflow(
       target.id,
-      WorkflowStatuts.PAYE,
-      paymentNote.value || `Paiement enregistré (${paymentAmount.value || 'montant non précise'})`
+      amount,
+      paymentNote.value || `Paiement enregistré (${paymentAmount.value || 'montant non précisé'})`
     )
-    addToast('success', 'Paiement enregistré - Statut dossier - Payé')
+    addToast('success', 'Paiement enregistré (workflow)')
     activeView.value = 'af-dashboard'
     paymentRef.value = ''
     paymentAmount.value = ''
     paymentNote.value = ''
-  } catch {
-    addToast('error', 'Paiement non enregistré côté backend')
-  }
-}
-const registerQuickPayment = async (p: any) => {
-  try {
-    const target = store.dossiers.find((d: any) => d.numero === p.ref)
-    if (!target?.id) {
-      addToast('error', 'Dossier non trouvé')
-      return
-    }
-    await store.transitionDossier(target.id, WorkflowStatuts.PAYE, `Paiement enregistré (${p.montant})`)
-    p.paid = true
-    addToast('success', 'Paiement enregistré ” Statut: Payé')
   } catch {
     addToast('error', 'Paiement non enregistré côté backend')
   }
@@ -103,23 +92,19 @@ const registerQuickPayment = async (p: any) => {
             <table class="tbl">
               <thead><tr><th>Référence</th><th>Objet</th><th>Montant</th><th>Statut paiement</th><th>Échéance</th><th>Actions</th></tr></thead>
               <tbody>
-                <tr v-for="p in paiements" :key="p.id">
-                  <td style="font-size:11px;font-weight:800;color:var(--blue)">{{p.ref}}</td>
-                  <td><div style="font-weight:600;font-size:12px">{{p.objet}}</div><div style="font-size:10px;color:var(--muted)">{{p.from}}</div></td>
-                  <td style="font-weight:700;font-size:13px;color:var(--green)">{{p.montant}}</td>
+                <tr v-for="d in dossiersARegler" :key="d.id">
+                  <td style="font-size:11px;font-weight:800;color:var(--blue)">{{d.numero}}</td>
                   <td>
-                    <span class="badge" :class="p.paid?'b-paiement':'b-traitement'">{{p.paid?'Payé':'En attente'}}</span>
+                    <div style="font-weight:600;font-size:12px">{{d.objet}}</div>
+                    <div style="font-size:10px;color:var(--muted)">{{d.expediteur}}</div>
                   </td>
-                  <td style="font-size:11px;color:var(--muted)">{{p.echeance}}</td>
+                  <td style="font-weight:700;font-size:12px;color:var(--muted)">À saisir</td>
+                  <td><span class="badge b-traitement">En attente</span></td>
+                  <td style="font-size:11px;color:var(--muted)">-</td>
                   <td>
-                    <div style="display:flex;gap:5px" v-if="!p.paid">
-                      <button class="btn btn-success btn-sm" @click="registerQuickPayment(p)">Enregistrer</button>
-                      <button class="btn btn-outline btn-sm" @click="activeView='af-justificatif'">Justificatif</button>
-                      <button class='btn btn-outline btn-sm' @click='openDocs(p)'>Docs</button>
-                    </div>
-                    <div style="display:flex;gap:5px" v-else>
-                      <button class="btn btn-outline btn-sm" @click="addToast('info','Génération du reçu...')">Reçu PDF</button>
-                      <button class='btn btn-outline btn-sm' @click='openDocs(p)'>Docs</button>
+                    <div style="display:flex;gap:5px">
+                      <button class="btn btn-success btn-sm" @click="paymentRef=String(d.numero||d.id); activeView='af-enregistrer'">Saisir</button>
+                      <button class="btn btn-outline btn-sm" @click="openDocs(d)">Docs</button>
                     </div>
                   </td>
                 </tr>
@@ -202,4 +187,3 @@ const registerQuickPayment = async (p: any) => {
     </template>
   </div>
 </template>
-

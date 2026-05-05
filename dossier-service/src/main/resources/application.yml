@@ -24,3 +24,12 @@ eureka:
   instance:
     prefer-ip-address: true
 
+jwt:
+  secret: ${JWT_SECRET:my-super-secret-key-for-jwt-signing-32chars-min}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+

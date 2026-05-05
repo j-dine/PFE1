@@ -1,8 +1,5 @@
 services:
 
-  # =============================
-  # PostgreSQL Database
-  # =============================
   postgres:
     image: postgres:15
     container_name: postgres
@@ -23,9 +20,7 @@ services:
       retries: 10
       start_period: 10s
     restart: always
-  # =============================
-  # PGADMIN
-  # =============================
+
   pgadmin:
     image: dpage/pgadmin4
     container_name: pgadmin
@@ -43,10 +38,6 @@ services:
       - microservices-network
     restart: unless-stopped
 
-
-  # =============================
-  # EUREKA DISCOVERY
-  # =============================
   discovery-service:
     build: ./discovery-service
     container_name: discovery-service
@@ -62,18 +53,14 @@ services:
       start_period: 60s
     restart: always
 
-  # =============================
-  # API GATEWAY
-  # =============================
   api-gateway:
-    build:
-      context: .
-      dockerfile: api-gateway/Dockerfile
+    build: ./api-gateway
     container_name: api-gateway
     ports:
       - "8080:8080"
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-my-super-secret-key-for-jwt-signing-32chars-min}
     depends_on:
       discovery-service:
         condition: service_healthy
@@ -87,16 +74,9 @@ services:
       start_period: 40s
     restart: always
 
-  # =============================
-  # USER SERVICE
-  # =============================
   user-service:
-    build:
-      context: .
-      dockerfile: user-service/Dockerfile
+    build: ./user-service
     container_name: user-service
-    ports:
-      - "8081:8081"
     depends_on:
       discovery-service:
         condition: service_healthy
@@ -107,7 +87,7 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
-      # Create a default admin user at startup (dev/local only)
+      JWT_SECRET: ${JWT_SECRET:-my-super-secret-key-for-jwt-signing-32chars-min}
       APP_BOOTSTRAP_ADMIN_ENABLED: "true"
       APP_BOOTSTRAP_ADMIN_USERNAME: "admin"
       APP_BOOTSTRAP_ADMIN_PASSWORD: "Admin@123"
@@ -122,14 +102,9 @@ services:
       start_period: 40s
     restart: always
 
-  # =============================
-  # DOSSIER SERVICE
-  # =============================
   dossier-service:
     build: ./dossier-service
     container_name: dossier-service
-    ports:
-      - "8082:8082"
     depends_on:
       discovery-service:
         condition: service_healthy
@@ -150,14 +125,9 @@ services:
       start_period: 40s
     restart: always
 
-  # =============================
-  # WORKFLOW SERVICE
-  # =============================
   workflow-service:
     build: ./workflow-service
     container_name: workflow-service
-    ports:
-      - "8083:8083"
     depends_on:
       discovery-service:
         condition: service_healthy
@@ -168,6 +138,7 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-my-super-secret-key-for-jwt-signing-32chars-min}
       EUREKA_CLIENT_ENABLED: "true"
       EUREKA_CLIENT_REGISTER_WITH_EUREKA: "true"
       EUREKA_CLIENT_FETCH_REGISTRY: "true"
@@ -181,14 +152,9 @@ services:
       start_period: 50s
     restart: always
 
-  # =============================
-  # PAIEMENT SERVICE
-  # =============================
   paiement-service:
     build: ./paiement-service
     container_name: paiement-service
-    ports:
-      - "8084:8084"
     depends_on:
       discovery-service:
         condition: service_healthy
@@ -199,6 +165,7 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-my-super-secret-key-for-jwt-signing-32chars-min}
     networks:
       - microservices-network
     healthcheck:
@@ -209,19 +176,15 @@ services:
       start_period: 40s
     restart: always
 
-  # =============================
-  # NOTIFICATION SERVICE
-  # =============================
   notification-service:
     build: ./notification-service
     container_name: notification-service
-    ports:
-      - "8085:8085"
     depends_on:
       discovery-service:
         condition: service_healthy
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-my-super-secret-key-for-jwt-signing-32chars-min}
     networks:
       - microservices-network
     healthcheck:
@@ -232,14 +195,9 @@ services:
       start_period: 40s
     restart: always
 
-  # =============================
-  # DOCUMENT SERVICE
-  # =============================
   document-service:
     build: ./document-service
     container_name: document-service
-    ports:
-      - "8086:8086"
     volumes:
       - document_uploads:/app/uploads
     depends_on:
@@ -252,6 +210,7 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-my-super-secret-key-for-jwt-signing-32chars-min}
     networks:
       - microservices-network
     healthcheck:
@@ -262,18 +221,38 @@ services:
       start_period: 40s
     restart: always
 
-# =============================
-# NETWORK
-# =============================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - microservices-network
+    restart: unless-stopped
+
 networks:
   microservices-network:
     driver: bridge
 
-# =============================
-# VOLUME
-# =============================
 volumes:
   postgres_data:
   pgadmin_data:
   document_uploads:
+  grafana_data:
 

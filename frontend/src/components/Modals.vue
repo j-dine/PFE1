@@ -3,6 +3,7 @@ import { computed, watch } from 'vue'
 import { ref } from 'vue'
 import { useAppStore } from '../stores/appStore'
 import { WorkflowStatuts } from '../constants/workflow'
+import DocumentsSection from './DocumentsSection.vue'
 
 const store = useAppStore()
 
@@ -29,6 +30,14 @@ const archiveDetailsLoading = computed(() => store.archiveDetailsLoading)
 const archiveDetailsDossier = computed(() => store.archiveDetailsDossier)
 const archiveDetailsDocuments = computed(() => store.archiveDetailsDocuments)
 const currentRole = computed(() => store.currentRole)
+
+const editDossierForm = ref({
+  objet: '',
+  expediteur: '',
+  service: '',
+  priorite: '',
+  remarques: ''
+})
 
 const canDeleteDocs = computed(() => {
   // Only BO and Admin can remove documents (avoid accidental deletes by other roles).
@@ -67,9 +76,18 @@ const newUser = ref({
 const newAssignedRole = ref('Agent de Service')
 const roleJustification = ref('')
 
-watch([activeModal, modalUser], () => {
+watch([activeModal, modalUser, selectedDossier], () => {
   if (activeModal.value === 'attribuerRole' && modalUser.value?.role) {
     newAssignedRole.value = modalUser.value.role
+  }
+  if (activeModal.value === 'modifierDossier' && selectedDossier.value) {
+    editDossierForm.value = {
+      objet: selectedDossier.value.objet || '',
+      expediteur: selectedDossier.value.expediteur || '',
+      service: selectedDossier.value.service || '',
+      priorite: selectedDossier.value.priorite || 'Normal',
+      remarques: ''
+    }
   }
 })
 
@@ -159,6 +177,23 @@ const submitNewUser = async () => {
     newUser.value = { username: '', password: '', email: '', role: 'Agent de Service', service: 'Bureau d\'Ordre' }
   } catch (error: any) {
     addToast('error', error?.response?.data?.message || 'Erreur lors de la création.')
+  }
+}
+
+const submitUpdateDossier = async () => {
+  if (!selectedDossier.value?.id) return
+  try {
+    const payload = {
+      titre: editDossierForm.value.objet,
+      description: editDossierForm.value.remarques,
+      destinataireExterne: editDossierForm.value.expediteur,
+      serviceCible: editDossierForm.value.service,
+      priorite: editDossierForm.value.priorite.toUpperCase().replace(' ', '_')
+    }
+    await store.updateDossier(selectedDossier.value.id, payload)
+    modalOpen.value = false
+  } catch (err) {
+    console.error('Update failed:', err)
   }
 }
 
@@ -368,33 +403,15 @@ const submitRoleChange = async () => {
             </div>
           </div>
 
-          <div style="font-size:12px;font-weight:800;margin-bottom:10px">Documents</div>
-          <div v-if="!archiveDetailsDocuments || archiveDetailsDocuments.length===0" class="empty-state" style="padding:18px">
-            Aucun document associé à ce dossier.
-          </div>
-          <table v-else class="tbl">
-            <thead>
-              <tr>
-                <th>Nom fichier</th>
-                <th>Type</th>
-                <th>Date</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="doc in archiveDetailsDocuments" :key="doc.id">
-                <td style="font-size:12px;font-weight:700">{{doc.nomFichier}}</td>
-                <td style="font-size:11px;color:var(--muted)">{{doc.type || '-'}}</td>
-                <td style="font-size:11px;color:var(--muted)">{{doc.dateUpload ? String(doc.dateUpload).slice(0,10).split('-').reverse().join('/') : '-'}}</td>
-                <td>
-                  <div style="display:flex;gap:6px;justify-content:flex-end">
-                    <button class="btn btn-outline btn-sm" @click="openDoc(doc)">Ouvrir</button>
-                    <button v-if="canDeleteDocs" class="btn btn-soft-danger btn-sm" @click="deleteDoc(doc)">Supprimer</button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <DocumentsSection
+            title="Documents"
+            :documents="archiveDetailsDocuments"
+            :loading="archiveDetailsLoading"
+            :can-delete="canDeleteDocs"
+            :chrome="false"
+            @open="openDoc"
+            @delete="deleteDoc"
+          />
         </template>
       </div>
       <div class="modal-foot">
@@ -455,18 +472,18 @@ const submitRoleChange = async () => {
         <div class="modal-head"><div class="modal-title">Modifier le dossier</div><button class="modal-close" @click="modalOpen=false">✕</button></div>
         <div class="modal-body">
           <div class="form-grid form-2" style="gap:12px">
-            <div class="form-group"><label class="form-label">Objet</label><input class="form-input" :value="selectedDossier?selectedDossier.objet:''"></div>
-            <div class="form-group"><label class="form-label">Expéditeur</label><input class="form-input" :value="selectedDossier?selectedDossier.expediteur:''"></div>
+            <div class="form-group"><label class="form-label">Objet</label><input class="form-input" v-model="editDossierForm.objet"></div>
+            <div class="form-group"><label class="form-label">Expéditeur</label><input class="form-input" v-model="editDossierForm.expediteur"></div>
             <div class="form-group"><label class="form-label">Service</label>
-              <select class="form-select"><option>Direction Générale</option><option>Service Financier</option><option>Service Technique</option><option>RH</option></select></div>
+              <select class="form-select" v-model="editDossierForm.service"><option>Direction Générale</option><option>Service Financier</option><option>Service Technique</option><option>RH</option></select></div>
             <div class="form-group"><label class="form-label">Priorité</label>
-              <select class="form-select"><option>Normal</option><option>Urgent</option><option>Très urgent</option></select></div>
-            <div class="form-group" style="grid-column:1/-1"><label class="form-label">Remarques</label><textarea class="form-textarea" placeholder="..."></textarea></div>
+              <select class="form-select" v-model="editDossierForm.priorite"><option>Normal</option><option>Urgent</option><option>Très urgent</option></select></div>
+            <div class="form-group" style="grid-column:1/-1"><label class="form-label">Remarques</label><textarea class="form-textarea" placeholder="..." v-model="editDossierForm.remarques"></textarea></div>
           </div>
         </div>
         <div class="modal-foot">
           <button class="btn btn-outline" @click="modalOpen=false">Annuler</button>
-          <button class="btn btn-primary" @click="modalOpen=false;addToast('success','Dossier mis à jour.')">Enregistrer</button>
+          <button class="btn btn-primary" @click="submitUpdateDossier">Enregistrer</button>
         </div>
       </template>
 

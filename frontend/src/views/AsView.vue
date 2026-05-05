@@ -1,30 +1,84 @@
-      <script setup lang="ts">
-      import { computed } from 'vue'
+﻿﻿      <script setup lang="ts">
+      import { computed, watch } from 'vue'
       import { ref } from 'vue'
       import { useAppStore } from '../stores/appStore'
       import { WorkflowStatuts } from '../constants/workflow'
+      import DocumentsSection from '../components/DocumentsSection.vue'
 
       const store = useAppStore()
 
       const activeView = computed(() => store.activeView)
       const wfSteps = computed(() => store.wfSteps)
       const dossiers = computed(() => store.dossiers)
+      const tasks = computed(() => store.workflowTasks || [])
+      const responseForm = ref({
+        to: '',
+        type: 'Réponse officielle',
+        subject: '',
+        body: '',
+        method: 'Bureau d\'Ordre'
+      })
+
+      const traitementDossiers = computed(() => {
+        const map = new Map((dossiers.value || []).map((d: any) => [String(d.id), d]))
+        return (tasks.value || [])
+          .filter((t: any) => String(t?.taskDefinitionKey || '') === 'UserTask_Traitement')
+          .map((t: any) => map.get(String(t.dossierId)))
+          .filter(Boolean)
+      })
       const selectedDossier = computed(() => store.selectedDossier)
+      const selectedDocs = computed(() => store.selectedDossierDocuments || [])
       const asStats = computed(() => store.asStats)
       const traitementNote = ref('')
+      const selectedDocsLoading = computed(() => store.selectedDossierDocsLoading)
+
+      // Auto-chargement des documents
+      watch(selectedDossier, (newD) => {
+        if (newD?.id) {
+          store.loadSelectedDossierDocuments(newD.id)
+        }
+      }, { immediate: true })
 
       const selectDossier = (d: any) => store.selectDossier(d)
       const openModal = (name: string, data?: any) => store.openModal(name, data)
       const addToast = (type: string, msg: string) => store.addToast(type, msg)
 
-      const openDocs = () => {
-        if (selectedDossier.value?.id) store.openArchiveDetails(selectedDossier.value.id)
-      }
-      const transmitToValidation = async () => {
-        if (!selectedDossier.value?.id) {
-          addToast('error', 'Sélectionnez un dossier')
+const openDocs = () => {
+  if (selectedDossier.value?.id) store.openArchiveDetails(selectedDossier.value.id)
+}
+const refreshSelectedDocs = async () => {
+  if (!selectedDossier.value?.id) return
+  try {
+    await store.loadSelectedDossierDocuments(selectedDossier.value.id)
+  } catch (e) {
+    console.warn('refreshSelectedDocs failed:', e)
+  }
+}
+const openDocInline = async (doc: any) => {
+  try {
+    await store.openDocument(doc)
+  } catch (err: any) {
+    addToast('error', err?.message || 'Impossible d\'ouvrir le document (backend/stockage)')
+  }
+}
+
+      const sendResponseEmail = async () => {
+        if (!responseForm.value.to || !responseForm.value.subject || !responseForm.value.body) {
+          addToast('error', 'Veuillez remplir tous les champs de l\'e-mail')
           return
         }
+        await store.sendEmailResponse({
+          to: responseForm.value.to,
+          subject: responseForm.value.subject,
+          body: responseForm.value.body
+        })
+      }
+
+const transmitToValidation = async () => {
+  if (!selectedDossier.value?.id) {
+    addToast('error', 'Sélectionnez un dossier')
+    return
+  }
         try {
           await store.transitionDossier(
             selectedDossier.value.id,
@@ -34,7 +88,7 @@
           addToast('success', 'Dossier transmis au responsable pour validation')
           traitementNote.value = ''
         } catch {
-          addToast('error', 'Transition impossible côté backend')
+          addToast('error', 'Transition impossible coté backend')
         }
       }
 
@@ -84,7 +138,7 @@
             </div>
             <div class="col-list-detail">
               <div>
-                <div v-for="d in dossiers.filter((x:any)=>x.statutKey==='traitement'||x.statutKey==='enregistrement'||x.statutKey==='rejete')" :key="d.id"
+                <div v-for="d in traitementDossiers" :key="d.id"
                   class="dossier-card" :class="{sel:selectedDossier&&selectedDossier.id===d.id}" @click="selectDossier(d)">
                   <div class="dc-top"><span class="dc-ref">{{d.numero}}</span><span class="dc-date">{{d.dateReception}}</span></div>
                   <div class="dc-obj">{{d.objet}}</div>
@@ -114,8 +168,8 @@
                     <div class="form-group" style="margin-top:10px"><label class="form-label">Mettre à jour les infos</label><input type="text" class="form-input" placeholder="Information complémentaire..."></div>
                   </div>
                   <div class="dp-actions">
-                    <button class='btn btn-outline' style='width:100%;justify-content:center' @click='openDocs'>
-                      <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><polyline points='14 2 14 8 20 8'/></svg>
+                    <button class="btn btn-outline" style="width:100%;justify-content:center" @click="openDocs">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                       Voir documents
                     </button>
                     <button v-if="selectedDossier.statutKey !== 'rejete'" class="btn btn-success" style="width:100%;justify-content:center" @click="transmitToValidation">
@@ -135,6 +189,18 @@
                       Mettre à jour infos
                     </button>
                   </div>
+                  <DocumentsSection
+                    title="Documents"
+                    :documents="selectedDocs"
+                    :loading="selectedDocsLoading"
+                    :can-delete="false"
+                    @open="openDocInline"
+                  >
+                    <template #actions>
+                      <button class="btn btn-outline btn-sm" type="button" @click="refreshSelectedDocs">Actualiser</button>
+                      <button class="btn btn-outline btn-sm" type="button" @click="openDocs">Voir (modal)</button>
+                    </template>
+                  </DocumentsSection>
                   <div style="border-top:1px solid var(--border);padding:14px 18px 4px">
                     <div style="font-size:11px;font-weight:700;margin-bottom:8px">Historique</div>
                     <div class="tl-item" v-for="h in selectedDossier.historique" :key="h.id">
@@ -157,18 +223,18 @@
               </div>
               <div style="padding:22px">
                 <div class="form-grid form-2" style="gap:12px">
-                  <div class="form-group"><label class="form-label">Destinataire</label><input class="form-input" placeholder="Nom / Service"></div>
+                  <div class="form-group"><label class="form-label">Destinataire (Email)</label><input class="form-input" placeholder="exemple@client.com" v-model="responseForm.to"></div>
                   <div class="form-group"><label class="form-label">Type de réponse</label>
-                    <select class="form-select"><option>Réponse officielle</option><option>Accusé de réception</option><option>Demande de complément</option></select></div>
-                  <div class="form-group" style="grid-column:1/-1"><label class="form-label">Objet</label><input class="form-input" placeholder="En réponse à..."></div>
-                  <div class="form-group" style="grid-column:1/-1"><label class="form-label">Corps du message</label><textarea class="form-textarea" style="min-height:120px" placeholder="Rédigez votre réponse..."></textarea></div>
+                    <select class="form-select" v-model="responseForm.type"><option>Réponse officielle</option><option>Accusé de réception</option><option>Demande de complément</option></select></div>
+                  <div class="form-group" style="grid-column:1/-1"><label class="form-label">Objet</label><input class="form-input" placeholder="En réponse à..." v-model="responseForm.subject"></div>
+                  <div class="form-group" style="grid-column:1/-1"><label class="form-label">Corps du message</label><textarea class="form-textarea" style="min-height:120px" placeholder="Rédigez votre réponse..." v-model="responseForm.body"></textarea></div>
                   <div class="form-group"><label class="form-label">Transmission via</label>
-                    <select class="form-select"><option>Bureau d'Ordre</option><option>Email direct</option><option>Courrier postal</option></select></div>
+                    <select class="form-select" v-model="responseForm.method"><option>Bureau d'Ordre</option><option>Email direct</option><option>Courrier postal</option></select></div>
                   <div class="form-group"><label class="form-label">Joindre document</label><input type="file" class="form-input" style="padding:6px"></div>
                 </div>
                 <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
                   <button class="btn btn-outline">Brouillon</button>
-                  <button class="btn btn-primary" @click="addToast('success','Réponse transmise via le Bureau d\'Ordre.')">
+                  <button class="btn btn-primary" @click="sendResponseEmail">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                     Envoyer
                   </button>
@@ -178,5 +244,3 @@
           </template>
         </div>
       </template>
-
-

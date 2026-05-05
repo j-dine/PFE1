@@ -1,6 +1,8 @@
 package com.example.notification.controller;
 
+import com.example.notification.dto.EmailRequest;
 import com.example.notification.entity.Notification;
+import com.example.notification.service.EmailService;
 import com.example.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +16,12 @@ import java.util.List;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final EmailService emailService;
+
+    @PostMapping("/email")
+    public void sendEmail(@RequestBody EmailRequest request) {
+        emailService.sendSimpleEmail(request.getTo(), request.getSubject(), request.getBody());
+    }
 
     /** Envoi rapide : destinataire + sujet + message en paramètres */
     @PostMapping("/send")

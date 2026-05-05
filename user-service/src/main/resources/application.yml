@@ -27,3 +27,9 @@ eureka:
 jwt:
   secret: ${JWT_SECRET:my-super-secret-key-for-jwt-signing-32chars-min}
   expiration-ms: ${JWT_EXPIRATION_MS:36000000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

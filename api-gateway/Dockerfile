@@ -9,5 +9,6 @@ RUN mvn -f api-gateway/pom.xml -DskipTests package
 
 FROM eclipse-temurin:17
 WORKDIR /app
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 COPY --from=build /build/api-gateway/target/*.jar app.jar
 ENTRYPOINT ["java", "-jar", "app.jar"]
