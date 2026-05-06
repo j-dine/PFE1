@@ -39,11 +39,14 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromSecret: database-url
+        fromSecret:
+          name: database-url
       - key: SPRING_DATASOURCE_USERNAME
-        fromSecret: database-username
+        fromSecret:
+          name: database-username
       - key: SPRING_DATASOURCE_PASSWORD
-        fromSecret: database-password
+        fromSecret:
+          name: database-password
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
         fromService:
           type: web
@@ -64,11 +67,14 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromSecret: database-url
+        fromSecret:
+          name: database-url
       - key: SPRING_DATASOURCE_USERNAME
-        fromSecret: database-username
+        fromSecret:
+          name: database-username
       - key: SPRING_DATASOURCE_PASSWORD
-        fromSecret: database-password
+        fromSecret:
+          name: database-password
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
         fromService:
           type: web
@@ -89,11 +95,14 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromSecret: database-url
+        fromSecret:
+          name: database-url
       - key: SPRING_DATASOURCE_USERNAME
-        fromSecret: database-username
+        fromSecret:
+          name: database-username
       - key: SPRING_DATASOURCE_PASSWORD
-        fromSecret: database-password
+        fromSecret:
+          name: database-password
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
         fromService:
           type: web
@@ -114,11 +123,14 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromSecret: database-url
+        fromSecret:
+          name: database-url
       - key: SPRING_DATASOURCE_USERNAME
-        fromSecret: database-username
+        fromSecret:
+          name: database-username
       - key: SPRING_DATASOURCE_PASSWORD
-        fromSecret: database-password
+        fromSecret:
+          name: database-password
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
         fromService:
           type: web
@@ -158,11 +170,14 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromSecret: database-url
+        fromSecret:
+          name: database-url
       - key: SPRING_DATASOURCE_USERNAME
-        fromSecret: database-username
+        fromSecret:
+          name: database-username
       - key: SPRING_DATASOURCE_PASSWORD
-        fromSecret: database-password
+        fromSecret:
+          name: database-password
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
         fromService:
           type: web
@@ -200,3 +215,8 @@ services:
     envVars:
       - key: GF_SECURITY_ADMIN_PASSWORD
         value: admin
+
+
+
+
+
