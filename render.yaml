@@ -23,12 +23,9 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-        fromService:
-          type: web
-          name: discovery-service
-          property: hostport
+        value: http://discovery-service:8080/eureka/
       - key: JWT_SECRET
-        generateValue: true
+        value: my-super-secret-key-for-jwt-signing-32chars-min
 
   - type: web
     name: user-service
@@ -39,24 +36,15 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromSecret:
-          name: database-url
+        value: ${DATABASE_URL}
       - key: SPRING_DATASOURCE_USERNAME
-        fromSecret:
-          name: database-username
+        value: ${DATABASE_USERNAME}
       - key: SPRING_DATASOURCE_PASSWORD
-        fromSecret:
-          name: database-password
+        value: ${DATABASE_PASSWORD}
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-        fromService:
-          type: web
-          name: discovery-service
-          property: hostport
+        value: http://discovery-service:8080/eureka/
       - key: JWT_SECRET
-        fromService:
-          type: web
-          name: api-gateway
-          envVarKey: JWT_SECRET
+        value: my-super-secret-key-for-jwt-signing-32chars-min
 
   - type: web
     name: dossier-service
@@ -67,24 +55,15 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromSecret:
-          name: database-url
+        value: ${DATABASE_URL}
       - key: SPRING_DATASOURCE_USERNAME
-        fromSecret:
-          name: database-username
+        value: ${DATABASE_USERNAME}
       - key: SPRING_DATASOURCE_PASSWORD
-        fromSecret:
-          name: database-password
+        value: ${DATABASE_PASSWORD}
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-        fromService:
-          type: web
-          name: discovery-service
-          property: hostport
+        value: http://discovery-service:8080/eureka/
       - key: JWT_SECRET
-        fromService:
-          type: web
-          name: api-gateway
-          envVarKey: JWT_SECRET
+        value: my-super-secret-key-for-jwt-signing-32chars-min
 
   - type: web
     name: workflow-service
@@ -95,24 +74,21 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromSecret:
-          name: database-url
+        value: ${DATABASE_URL}
       - key: SPRING_DATASOURCE_USERNAME
-        fromSecret:
-          name: database-username
+        value: ${DATABASE_USERNAME}
       - key: SPRING_DATASOURCE_PASSWORD
-        fromSecret:
-          name: database-password
+        value: ${DATABASE_PASSWORD}
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-        fromService:
-          type: web
-          name: discovery-service
-          property: hostport
+        value: http://discovery-service:8080/eureka/
       - key: JWT_SECRET
-        fromService:
-          type: web
-          name: api-gateway
-          envVarKey: JWT_SECRET
+        value: my-super-secret-key-for-jwt-signing-32chars-min
+      - key: EUREKA_CLIENT_ENABLED
+        value: "true"
+      - key: EUREKA_CLIENT_REGISTER_WITH_EUREKA
+        value: "true"
+      - key: EUREKA_CLIENT_FETCH_REGISTRY
+        value: "true"
 
   - type: web
     name: paiement-service
@@ -123,24 +99,15 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromSecret:
-          name: database-url
+        value: ${DATABASE_URL}
       - key: SPRING_DATASOURCE_USERNAME
-        fromSecret:
-          name: database-username
+        value: ${DATABASE_USERNAME}
       - key: SPRING_DATASOURCE_PASSWORD
-        fromSecret:
-          name: database-password
+        value: ${DATABASE_PASSWORD}
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-        fromService:
-          type: web
-          name: discovery-service
-          property: hostport
+        value: http://discovery-service:8080/eureka/
       - key: JWT_SECRET
-        fromService:
-          type: web
-          name: api-gateway
-          envVarKey: JWT_SECRET
+        value: my-super-secret-key-for-jwt-signing-32chars-min
 
   - type: web
     name: notification-service
@@ -151,15 +118,9 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-        fromService:
-          type: web
-          name: discovery-service
-          property: hostport
+        value: http://discovery-service:8080/eureka/
       - key: JWT_SECRET
-        fromService:
-          type: web
-          name: api-gateway
-          envVarKey: JWT_SECRET
+        value: my-super-secret-key-for-jwt-signing-32chars-min
 
   - type: web
     name: document-service
@@ -170,24 +131,15 @@ services:
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
-        fromSecret:
-          name: database-url
+        value: ${DATABASE_URL}
       - key: SPRING_DATASOURCE_USERNAME
-        fromSecret:
-          name: database-username
+        value: ${DATABASE_USERNAME}
       - key: SPRING_DATASOURCE_PASSWORD
-        fromSecret:
-          name: database-password
+        value: ${DATABASE_PASSWORD}
       - key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-        fromService:
-          type: web
-          name: discovery-service
-          property: hostport
+        value: http://discovery-service:8080/eureka/
       - key: JWT_SECRET
-        fromService:
-          type: web
-          name: api-gateway
-          envVarKey: JWT_SECRET
+        value: my-super-secret-key-for-jwt-signing-32chars-min
 
   - type: web
     name: frontend
