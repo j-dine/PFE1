@@ -215,8 +215,3 @@ services:
     envVars:
       - key: GF_SECURITY_ADMIN_PASSWORD
         value: admin
-
-
-
-
-
