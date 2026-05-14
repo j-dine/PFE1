@@ -39,7 +39,9 @@ services:
     restart: unless-stopped
 
   discovery-service:
-    build: ./discovery-service
+    build:
+      context: .
+      dockerfile: ./discovery-service/Dockerfile
     container_name: discovery-service
     ports:
       - "8761:8761"
@@ -54,7 +56,9 @@ services:
     restart: always
 
   api-gateway:
-    build: ./api-gateway
+    build:
+      context: .
+      dockerfile: ./api-gateway/Dockerfile
     container_name: api-gateway
     ports:
       - "8080:8080"
@@ -75,7 +79,9 @@ services:
     restart: always
 
   user-service:
-    build: ./user-service
+    build:
+      context: .
+      dockerfile: ./user-service/Dockerfile
     container_name: user-service
     depends_on:
       discovery-service:
@@ -103,7 +109,9 @@ services:
     restart: always
 
   dossier-service:
-    build: ./dossier-service
+    build:
+      context: .
+      dockerfile: ./dossier-service/Dockerfile
     container_name: dossier-service
     depends_on:
       discovery-service:
@@ -126,7 +134,9 @@ services:
     restart: always
 
   workflow-service:
-    build: ./workflow-service
+    build:
+      context: .
+      dockerfile: ./workflow-service/Dockerfile
     container_name: workflow-service
     depends_on:
       discovery-service:
@@ -153,7 +163,9 @@ services:
     restart: always
 
   paiement-service:
-    build: ./paiement-service
+    build:
+      context: .
+      dockerfile: ./paiement-service/Dockerfile
     container_name: paiement-service
     depends_on:
       discovery-service:
@@ -177,7 +189,9 @@ services:
     restart: always
 
   notification-service:
-    build: ./notification-service
+    build:
+      context: .
+      dockerfile: ./notification-service/Dockerfile
     container_name: notification-service
     depends_on:
       discovery-service:
@@ -196,7 +210,9 @@ services:
     restart: always
 
   document-service:
-    build: ./document-service
+    build:
+      context: .
+      dockerfile: ./document-service/Dockerfile
     container_name: document-service
     volumes:
       - document_uploads:/app/uploads
