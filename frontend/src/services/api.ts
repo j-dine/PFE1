@@ -1,6 +1,11 @@
 import axios from 'axios'
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || 'localhost:8080'
+const rawBaseURL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').trim()
+
+const baseURL =
+  rawBaseURL.startsWith('/') || /^https?:\/\//i.test(rawBaseURL)
+    ? rawBaseURL
+    : `http://${rawBaseURL}`
 
 export const api = axios.create({
   baseURL,
