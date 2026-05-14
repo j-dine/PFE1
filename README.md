@@ -17,13 +17,13 @@ A Spring Boot microservices architecture with Eureka discovery, API Gateway, and
 ## Prerequisites
 
 - Docker and Docker Compose
-- Java 17
-- Maven
+
+> Recommended mode: 100% containerized build/run. No local Maven installation is required when using Docker Compose.
 
 ## Local Development
 
 1. Clone the repository
-2. Run `docker-compose up` to start all services including monitoring
+2. Run `docker compose up --build -d` to build and start all services (Java services are built with Maven inside Docker images)
 3. Access:
    - API Gateway: http://localhost:8080
    - Eureka Dashboard: http://localhost:8761

@@ -1,6 +1,11 @@
-import axios from 'axios'
+import axios, { AxiosHeaders, type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || 'localhost:8080'
+const rawBaseURL = import.meta.env.VITE_API_BASE_URL?.trim() || '/api'
+const baseURL = /^https?:\/\//i.test(rawBaseURL)
+  ? rawBaseURL.replace(/\/+$/, '')
+  : rawBaseURL.startsWith('/')
+    ? rawBaseURL.replace(/\/+$/, '') || '/api'
+    : `http://${rawBaseURL.replace(/^\/+/, '').replace(/\/+$/, '')}`
 
 export const api = axios.create({
   baseURL,
@@ -25,16 +30,17 @@ export const setAuthToken = (token: string, remember: boolean = true) => {
   }
 }
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (authToken) {
-    config.headers.Authorization = `Bearer ${authToken}`
+    config.headers = AxiosHeaders.from(config.headers)
+    config.headers.set('Authorization', `Bearer ${authToken}`)
   }
   return config
 })
 
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
+  (response: AxiosResponse) => response,
+  (error: AxiosError) => {
     // 401 = token absent/expiré/invalide (souvent après redémarrage ou expiration).
     // On purge le token et on notifie l'app pour forcer une reconnexion.
     if (error?.response?.status === 401) {

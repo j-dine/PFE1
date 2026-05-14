@@ -714,7 +714,7 @@ export const useAppStore = defineStore('app', {
         this.currentRole = 'abo'
         this.activeView = this.defaultViews.abo
       }
-      await Promise.all([
+      await Promise.allSettled([
         this.fetchDossiers(),
         this.fetchArchives(),
         this.fetchPaiements(),

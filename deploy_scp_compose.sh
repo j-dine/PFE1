@@ -24,49 +24,12 @@ KEEP_VOLUMES="${5:-false}"
 
 echo "Deploying to ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR} via SSH port ${SSH_PORT}"
 
-# Exclude unnecessary files but KEEP target/ and frontend/dist/ (needed for Docker builds)
+# Exclude unnecessary files
 EXCLUDES=(--exclude='.git' --exclude='node_modules' --exclude='**/node_modules' --exclude='.idea' --exclude='.vscode' --exclude='*.iml' --exclude='.m2')
 
 echo "Preparing files to copy..."
 
-# Optionally run local builds (Maven + frontend) before archiving.
-# Set SKIP_BUILD=true to skip local build step.
-if [[ "${SKIP_BUILD:-false}" != "true" ]]; then
-  echo "Building project locally (Maven package + frontend build)."
-
-  # Set JAVA_HOME to JDK 17 for Maven builds
-  export JAVA_HOME=${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}
-  if [ ! -d "$JAVA_HOME" ]; then
-    # Fallback: try to find a JDK 17 under /usr/lib/jvm
-    jdk17=$(ls -d /usr/lib/jvm/*17* 2>/dev/null | head -n1 || true)
-    if [ -n "$jdk17" ]; then
-      export JAVA_HOME="$jdk17"
-    else
-      echo "Warning: no JDK 17 found. Maven build may fail." >&2
-    fi
-  fi
-  export PATH="$JAVA_HOME/bin:$PATH"
-  echo "Using JAVA_HOME=$JAVA_HOME"
-  java -version
-
-  echo "Running: mvn -DskipTests package"
-  mvn -DskipTests package
-
-  if [ -d frontend ]; then
-    echo "Building frontend"
-    pushd frontend >/dev/null
-    if command -v pnpm >/dev/null 2>&1; then
-      pnpm install
-      pnpm build
-    else
-      npm install
-      npm run build
-    fi
-    popd >/dev/null
-  fi
-else
-  echo "SKIP_BUILD=true -> skipping local builds"
-fi
+echo "Skipping local Maven/npm builds. Remote docker compose will build all images in containers."
 
 echo "Creating archive and streaming to remote..."
 # Use tar over SSH to copy workspace reliably (preserves permissions and avoids scp recursion issues)
