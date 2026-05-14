@@ -1,0 +1,37 @@
+# Git
+.git
+.gitignore
+
+# Maven
+target/
+**/target/
+.m2/
+.m2repo/
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+.pnpm-store/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs and logs
+*.log
+logs/
+*.md
+README.md
+
+# Docker
+docker-compose.override.yml
+
+# Build artifacts (but keep ones in target folders for now)
+*.war

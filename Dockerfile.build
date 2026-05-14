@@ -1,0 +1,31 @@
+FROM maven:3.9.9-eclipse-temurin-17 AS build
+WORKDIR /build
+
+# Copier tous les fichiers sources
+COPY pom.xml .
+COPY api-gateway/ api-gateway/
+COPY discovery-service/ discovery-service/
+COPY document-service/ document-service/
+COPY dossier-service/ dossier-service/
+COPY notification-service/ notification-service/
+COPY paiement-service/ paiement-service/
+COPY user-service/ user-service/
+COPY workflow-service/ workflow-service/
+
+# Compiler tout le projet - une seule fois pour tous les services
+# Augmenter les retries Maven en cas d'erreur réseau
+RUN mvn clean install -DskipTests \
+    -Dhttp.keepAlive=false \
+    -Dmaven.wagon.http.retryHandler.count=5 \
+    -Dmaven.wagon.httpconnectionManager.ttlSecs=60 \
+    --fail-at-end
+
+# Exports des JARs de chaque service
+RUN cp discovery-service/target/*.jar /discovery-service.jar && \
+    cp api-gateway/target/*.jar /api-gateway.jar && \
+    cp user-service/target/*.jar /user-service.jar && \
+    cp dossier-service/target/*.jar /dossier-service.jar && \
+    cp workflow-service/target/*.jar /workflow-service.jar && \
+    cp paiement-service/target/*.jar /paiement-service.jar && \
+    cp notification-service/target/*.jar /notification-service.jar && \
+    cp document-service/target/*.jar /document-service.jar
