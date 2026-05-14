@@ -236,7 +236,7 @@ services:
     build: ./frontend
     container_name: frontend
     ports:
-      - "80:80"
+      - "6745:80"
     networks:
       - microservices-network
     restart: unless-stopped
