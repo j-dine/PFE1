@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const rawBaseURL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').trim()
+const rawBaseURL = (import.meta.env.VITE_API_BASE_URL || 'http://5.22.213.44:8080').trim()
 
 const baseURL =
   rawBaseURL.startsWith('/') || /^https?:\/\//i.test(rawBaseURL)
