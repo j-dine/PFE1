@@ -46,6 +46,10 @@ export const dossierService = {
     const { data } = await api.post('/api/dossiers', payload)
     return data
   },
+  async update(id: number | string, payload: Record<string, unknown>) {
+    const { data } = await api.put(`/api/dossiers/${id}`, payload)
+    return data
+  },
   async transition(dossierId: number | string, payload: { statut: string; commentaire?: string }) {
     // Mise à jour statut "simple" (controller: PUT /api/dossiers/{id}/statut?statut=...)
     // Archivage (controller: POST /api/dossiers/{id}/archive?retentionYears=...&commentaire=...)
